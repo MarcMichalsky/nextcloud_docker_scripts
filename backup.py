@@ -3,59 +3,91 @@
 import datetime
 import os
 import sys
+from pathlib import Path
 import yaml
 from colorama import Fore, Style
-import Models.Backup
-from Models.Container import Container
-from Models.NextcloudBackupException import NextcloudBackupException
+import utils
+from utils import _print
+from models import Container
+from models import Log
 
 
-def backup(container_names=None):
-    global backup_successfull
-    with open(r"./settings.yaml") as file:
+def backup():
+    backup_status = True
+
+    # Fetch arguments
+    utils.all_containers = "--all" in sys.argv
+    utils.quiet_mode = "--quiet" in sys.argv
+    utils.no_log = "--nolog" in sys.argv
+    utils.no_cleanup = "--nocleanup" in sys.argv
+
+    # Load settings
+    settings = Path(__file__).parent / "settings.yaml"
+    with open(settings) as file:
         # Load settings
         settings_list = yaml.full_load(file)
-        log_file = settings_list['paths']['log_file']
-        containers = Container.deserialize_containers(settings_list)
+        log = Log(settings_list['log']['log_dir'])
+        containers = Container.instantiate_containers(settings_list)
 
-    if type(container_names) is list:
-        containers_tmp = []
-        for container_name in container_names:
-            if container_name is str and container_name in containers:
-                containers_tmp.append(containers[container_name])
-            else:
-                print(F"{Fore.RED}Cannot find configuration for {container_name} in settings.yaml{Style.RESET_ALL}")
-        containers = containers_tmp
+    # If any container names where passed as parameters, do only backup them
+    containers_wanted = {name: container for name, container in containers.items() if name in sys.argv}
+    if containers_wanted:
+        containers = containers_wanted
 
     # Loop through Nextcloud container instances
     container: Container
-    for container in containers:
-        # Create backup folder if it does not yet exist
-        if container.create_backup_dir():
-            try:
-                print(F"{Fore.GREEN}Backup folder created under: {container.backup_folder}{Style.RESET_ALL}")
-            except OSError as e:
-                sys.exit(F"{Fore.RED}Could not create backup folder: {e.strerror}{Style.RESET_ALL}")
+    for container in containers.values():
 
-        print(F"Starting backup for {container.name}:")
-        try:
-            backup_successfull = True
-            for key, status in container.create_backup():
-                if status is True:
-                    print(F"{Fore.GREEN}{key}: success{Style.RESET_ALL}")
-                else:
-                    print(F"{Fore.RED}{key}: failed{Style.RESET_ALL}")
-                    backup_successfull = False
-        except NextcloudBackupException as e:
-            print(F"{Fore.RED}Backup for {container.name} failed!/n{e.message}{Style.RESET_ALL}")
-        print("---------------------------------")
-        if backup_successfull is True:
-            print(F"{Fore.GREEN}Backup for {container.name} was successful{Style.RESET_ALL}")
+        # Start backup
+        _print("----------------------------------------------")
+        _print(F"Start backup for {container.name} at {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        result = container.create_backup()
+        if result:
+            _print(F"{Fore.GREEN}Backup for {container.name} successfully created under "
+                   F"{container.tar_gz_file_path} [{result} MB]{Style.RESET_ALL}")
         else:
-            print(F"{Fore.RED}Backup for {container.name} failed{Style.RESET_ALL}")
+            _print(F"{Fore.RED}Backup for {container.name} failed{Style.RESET_ALL}")
+            for func, traceback in container.exceptions.items():
+                _print()
+                _print(F"{Fore.YELLOW}Exception occurred in method: Container.{func}(){Style.RESET_ALL}")
+                _print(traceback)
+                _print()
+                backup_status = False
 
+        # Log backup
+        if not utils.no_log:
+            if settings_list['log']['logging']:
+                if backup_status:
+                    log.log(F"Created a backup ; {container.name} ; {container.tar_gz_file_path} ; {result} MB")
+                else:
+                    log.log(F"Backup for {container.name} failed")
+                    if len(log.exceptions) > 0:
+                        for func, traceback in log.exceptions.items():
+                            _print()
+                            _print(F"{Fore.YELLOW}Exception occurred in method: Log.{func}(){Style.RESET_ALL}")
+                            _print(traceback)
+                            _print()
+
+        # Clean up backup folder
+        if not utils.no_cleanup:
+            deleted_files = 0
+            backup_dir = os.scandir(container.backup_dir)
+            backup_files = [file for file in backup_dir if
+                            file.is_file() and file.name.startswith(container.name) and file.name.endswith(".tar.gz")]
+
+            while len(backup_files) > container.number_of_backups:
+                del_file = min(backup_files, key=os.path.getctime)
+                backup_files.remove(del_file)
+                os.remove(del_file)
+                deleted_files += 1
+
+            if deleted_files == 1:
+                _print(F"{Fore.YELLOW}Deleted 1 old backup file.{Style.RESET_ALL}")
+            elif deleted_files >= 1:
+                _print(F"{Fore.YELLOW}Deleted {deleted_files} old backup files.{Style.RESET_ALL}")
+
+    return backup_status
 
 
 if __name__ == '__main__':
-    backup(sys.argv)
-
+    backup()
