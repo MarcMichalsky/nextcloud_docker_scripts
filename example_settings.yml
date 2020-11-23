@@ -1,0 +1,17 @@
+nextcloud_containers:
+
+  instance1: # name like Nextcloud container instance
+    mysql_password: "password"
+    backup_folder: "/full/path/to/directory/"
+    compose_file_path: "/full/path/to/directory/"
+
+  instance2: # name like Nextcloud container instance
+    mysql_password: "password"
+    backup_folder: "/full/path/to/directory/"
+    compose_file_path: "/full/path/to/directory/"
+
+log:
+  text: true
+  json: false
+  log_file: "/full/path/to/file.log"
+
