@@ -24,6 +24,7 @@ def restore():
     utils.all_containers = "--all" in sys.argv
     utils.quiet_mode = "--quiet" in sys.argv
     utils.no_log = "--nolog" in sys.argv
+    utils.no_confirm = "--yes" in sys.argv
 
     # Load settings
     settings = Path(__file__).parent / "settings.yaml"
@@ -33,7 +34,7 @@ def restore():
         log = Log(settings_list['log']['log_dir'])
         containers = Container.instantiate_containers(settings_list)
 
-    # If any container names where passed as parameters, do only restore them
+    # If any container names were passed as parameters, do only restore them
     containers_wanted = {name: container for name, container in containers.items() if name in sys.argv}
     if containers_wanted:
         containers = containers_wanted
@@ -46,9 +47,10 @@ def restore():
         containers = {containers_to_choose_from[choice_index]: containers.get(containers_to_choose_from[choice_index])}
 
     container: Container
+    results = {}
     for container in containers.values():
 
-        # Start backup restore
+        # Start restore
         _print("----------------------------------------------")
         _print(F"Restore backup for {container.name}")
 
@@ -61,17 +63,41 @@ def restore():
         backup_files_to_choose_from = [file.name for file in backup_files.values()]
         backup_files_to_choose_from.sort(reverse=True)
         _print()
+
+        # Choose backup to restore from
         terminal_menu = TerminalMenu(backup_files_to_choose_from, title="Which backup do you want to restore?")
         choice_index = terminal_menu.show()
         backup_file = backup_files.get(backup_files_to_choose_from[choice_index])
         print(backup_file.path)
 
-        confirm = input(F"Are you sure that you want to restore {backup_files_to_choose_from[choice_index]}? "
-                        F"(Type: yes)\n").lower() == "yes"
-        if confirm:
+        # Confirm restore
+        if not utils.no_confirm:
+            confirm = input(F"Are you sure that you want to restore {backup_files_to_choose_from[choice_index]}? "
+                            F"(Type: yes)\n").lower() == "yes"
+        else:
+            confirm = False
+
+        # Do the restore
+        if confirm or utils.no_confirm:
             result = container.restore_backup(backup_file.path)
         else:
             break
+
+        # Print result and log
+        if result:
+            _print(F"{Fore.GREEN}Backup {container.restore_tar_file} for {container.name} successfully restored.{Style.RESET_ALL}")
+            if not utils.no_log and settings_list['log']['logging']:
+                log.log(F"Restore backup ; {container.name} ; {container.restore_tar_file_path} ; SUCCESS")
+        else:
+            _print(F"{Fore.RED}Could not restore {container.restore_tar_file} for {container.name}.{Style.RESET_ALL}")
+            for func, traceback in container.exceptions.items():
+                _print()
+                _print(F"{Fore.YELLOW}Exception occurred in method: Container.{func}(){Style.RESET_ALL}")
+                _print(traceback)
+                _print()
+                backup_status = False
+            if not utils.no_log and settings_list['log']['logging']:
+                log.log(F"Restore backup ; {container.name} ; {container.restore_tar_file_path} ; FAIL")
 
 
 if __name__ == '__main__':

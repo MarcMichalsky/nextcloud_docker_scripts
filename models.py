@@ -30,8 +30,10 @@ class Container:
         self.exceptions = {}
         self.SUCCESS = F"{Fore.GREEN}success{Style.RESET_ALL}"
         self.FAILED = F"{Fore.RED}failed{Style.RESET_ALL}"
-
-        global quiet_mode
+        self.__restore_dump_file = ""
+        self.__restore_dump_file_path = ""
+        self.__restore_tar_file_path = ""
+        self.__restore_tar_file = ""
 
     # Create backup dir if it does not yet exist
     def __create_backup_dir(self):
@@ -88,7 +90,8 @@ class Container:
     def __import_db(self) -> bool:
         try:
             os.system(
-                F"docker exec {self.db_container} mysql -u root --password={self.__password} < {self.__dump_file_path}")
+                F"docker exec -i {self.db_container} mysql -u root --password={self.__password} "
+                F"< {self.__restore_dump_file_path}")
             status = True  # TODO: Implement test if database import was successful
             _print(F"Import Nextcloud database: {self.SUCCESS if status else self.FAILED}")
             return status
@@ -109,6 +112,8 @@ class Container:
                 status = os.path.isdir(os.path.join(self.tmp_dir, "config"))
                 _print(F"Export Nextcloud configuration: {self.SUCCESS if status else self.FAILED}")
                 return status
+            else:
+                _print(F"Export Nextcloud configuration: {self.FAILED}")
         except:
             _print(F"Export Nextcloud configuration: {self.FAILED}")
             self.exceptions.update({'__export_config': traceback.format_exc()})
@@ -118,11 +123,12 @@ class Container:
     def __import_config(self) -> bool:
         try:
             if os.path.isdir(os.path.join(self.tmp_dir, "config")):
-                with tarfile.open(self.__tar_file_path, 'w') as tarball:
+                with tarfile.open(self.__restore_tar_file_path, 'w') as tarball:
                     tarball.add(os.path.join(self.tmp_dir, "config"), arcname="/config")
-            os.system(F"docker cp {self.__tar_file_path} {self.app_container}:/var/www/html/config.tar")
+            os.system(F"docker cp {self.__restore_tar_file_path} {self.app_container}:/var/www/html/config.tar")
             os.system(F"docker exec {self.app_container} rm -r config")
             os.system(F"docker exec {self.app_container} tar -xf config.tar")
+            os.system(F"docker exec {self.app_container} rm config.tar")
             status = True  # TODO: implement a test if export into docker container was successful
             _print(F"Import Nextcloud configuration: {self.SUCCESS if status else self.FAILED}")
             return status
@@ -142,7 +148,7 @@ class Container:
             return status
         except:
             _print(F"Zip backup: {self.FAILED}")
-            self.exceptions.update({'__tar_db': traceback.format_exc()})
+            self.exceptions.update({'__tar_backup': traceback.format_exc()})
             return False
 
     # Untar backup
@@ -150,12 +156,12 @@ class Container:
         try:
             with tarfile.open(backup_file_path, 'r:gz') as tarball:
                 tarball.extractall(self.tmp_dir)
-            status = os.path.isdir(os.path.join(self.tmp_dir, "config")) and os.path.isfile(self.__dump_file_path)
+            status = os.path.isdir(os.path.join(self.tmp_dir, "config"))
             _print(F"Unzip backup: {self.SUCCESS if status else self.FAILED}")
             return status
         except:
             _print(F"Unzip backup: {self.FAILED}")
-            self.exceptions.update({'__untar_db': traceback.format_exc()})
+            self.exceptions.update({'__untar_backup': traceback.format_exc()})
             return False
 
     # Set secure file permissions
@@ -194,13 +200,18 @@ class Container:
 
     def restore_backup(self, backup_file_path):
 
+        self.__restore_dump_file = os.path.basename(backup_file_path[:-6] + "sql")
+        self.__restore_dump_file_path = os.path.join(self.tmp_dir, self.__restore_dump_file)
+        self.__restore_tar_file = os.path.basename(backup_file_path[:-3])
+        self.__restore_tar_file_path = os.path.join(self.tmp_dir, self.__restore_tar_file)
+
         if self.__create_tmp_dir():
             try:
                 step_status = [
                     self.__untar_backup(backup_file_path),
-                    #self.__import_config(),
-                    #self.__import_db(),
-                    #self.__delete_tmp_dir()
+                    self.__import_config(),
+                    self.__import_db(),
+                    self.__delete_tmp_dir()
                 ]
                 for step in step_status:
                     if not step:
