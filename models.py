@@ -1,18 +1,20 @@
 import datetime
 import os
 import stat
+import subprocess
+from subprocess import check_output
 import tarfile
 import traceback
 import shutil
 from colorama import Fore, Style
 from pathlib import Path
-import utils
 from utils import _print
 
 
 class Container:
 
-    def __init__(self, name, password, app_container, db_container, backup_dir, number_of_backups) -> None:
+    def __init__(self, name, password, app_container, db_container, backup_dir, docker_compose_file_path,
+                 number_of_backups) -> None:
         self.__datetime = datetime.datetime.now().strftime("%Y-%m-%d_%H%M%S")
         self.name = name
         self.__password = password
@@ -20,6 +22,7 @@ class Container:
         self.db_container = db_container
         self.backup_dir = backup_dir
         self.tmp_dir = os.path.join(backup_dir, 'tmp')
+        self.docker_compose_file_path = docker_compose_file_path
         self.number_of_backups = number_of_backups
         self.__dump_file = self.name + '_' + self.__datetime + '.sql'
         self.__dump_file_path = os.path.join(self.tmp_dir, self.__dump_file)
@@ -30,10 +33,10 @@ class Container:
         self.exceptions = {}
         self.SUCCESS = F"{Fore.GREEN}success{Style.RESET_ALL}"
         self.FAILED = F"{Fore.RED}failed{Style.RESET_ALL}"
-        self.__restore_dump_file = ""
-        self.__restore_dump_file_path = ""
-        self.__restore_tar_file_path = ""
-        self.__restore_tar_file = ""
+        self.restore_dump_file = ""
+        self.restore_dump_file_path = ""
+        self.restore_tar_file_path = ""
+        self.restore_tar_file = ""
 
     # Create backup dir if it does not yet exist
     def __create_backup_dir(self):
@@ -89,13 +92,14 @@ class Container:
     # Import database
     def __import_db(self) -> bool:
         try:
-            os.system(
-                F"docker exec -i {self.db_container} mysql -u root --password={self.__password} "
-                F"< {self.__restore_dump_file_path}")
-            status = True  # TODO: Implement test if database import was successful
+            import_db = subprocess.Popen(['cat', self.restore_dump_file_path], stdout=subprocess.PIPE)
+            result = check_output(
+                ["docker", "exec", self.db_container, "mysql", "--user=root", "--password=" + self.__password, ],
+                stdin=import_db.stdout)
+            status = 'ERROR' not in result.decode("utf-8")
             _print(F"Import Nextcloud database: {self.SUCCESS if status else self.FAILED}")
             return status
-        except:
+        except subprocess.CalledProcessError as e:
             _print(F"Import Nextcloud database: {self.FAILED}")
             self.exceptions.update({'__import_db': traceback.format_exc()})
             return False
@@ -123,9 +127,9 @@ class Container:
     def __import_config(self) -> bool:
         try:
             if os.path.isdir(os.path.join(self.tmp_dir, "config")):
-                with tarfile.open(self.__restore_tar_file_path, 'w') as tarball:
+                with tarfile.open(self.restore_tar_file_path, 'w') as tarball:
                     tarball.add(os.path.join(self.tmp_dir, "config"), arcname="/config")
-            os.system(F"docker cp {self.__restore_tar_file_path} {self.app_container}:/var/www/html/config.tar")
+            os.system(F"docker cp {self.restore_tar_file_path} {self.app_container}:/var/www/html/config.tar")
             os.system(F"docker exec {self.app_container} rm -r config")
             os.system(F"docker exec {self.app_container} tar -xf config.tar")
             os.system(F"docker exec {self.app_container} rm config.tar")
@@ -152,9 +156,9 @@ class Container:
             return False
 
     # Untar backup
-    def __untar_backup(self, backup_file_path) -> bool:
+    def __untar_backup(self) -> bool:
         try:
-            with tarfile.open(backup_file_path, 'r:gz') as tarball:
+            with tarfile.open(self.backup_file_path, 'r:gz') as tarball:
                 tarball.extractall(self.tmp_dir)
             status = os.path.isdir(os.path.join(self.tmp_dir, "config"))
             _print(F"Unzip backup: {self.SUCCESS if status else self.FAILED}")
@@ -176,50 +180,156 @@ class Container:
             self.exceptions.update({'__set_file_permissions': traceback.format_exc()})
             return False
 
+    # Enable Nextcloud maintenance mode
+    def __enable_maintenance_mode(self):
+        try:
+            enable_maintenance_mode = check_output(
+                ["docker", "exec", "--user", "www-data", self.app_container, "php", "occ", "maintenance:mode", "--on"])
+            chunks = enable_maintenance_mode.decode("utf-8").split('\n')
+            if 'Maintenance mode enabled' in chunks or 'Maintenance mode already enabled' in chunks:
+                _print(F"Enable Nextcloud maintenance mode: {self.SUCCESS}")
+                return True
+            else:
+                _print(F"Enable Nextcloud maintenance mode: {self.FAILED}")
+                return False
+        except:
+            self.exceptions.update({'__enable_maintenance_mode': traceback.format_exc()})
+            _print(F"Enable Nextcloud maintenance mode: {self.FAILED}")
+            return False
+
+    # Disable Nextcloud maintenance mode
+    def __disable_maintenance_mode(self):
+        try:
+            disable_maintenance_mode = check_output(
+                ["docker", "exec", "--user", "www-data", self.app_container, "php", "occ", "maintenance:mode", "--off"])
+            chunks = disable_maintenance_mode.decode("utf-8").split('\n')
+            if 'Maintenance mode disabled' in chunks:
+                _print(F"Disable Nextcloud maintenance mode: {self.SUCCESS}")
+                return True
+            else:
+                _print(F"Disable Nextcloud maintenance mode: {self.FAILED}")
+                return False
+        except:
+            self.exceptions.update({'__disable_maintenance_mode': traceback.format_exc()})
+            _print(F"Disable Nextcloud maintenance mode: {self.FAILED}")
+            return False
+
+    # Pull new docker images
+    def __pull_images(self):
+        update_required = False
+        try:
+            if os.path.isfile(self.docker_compose_file_path):
+                path = Path(self.docker_compose_file_path)
+                directory = path.parent
+            elif os.path.isdir(self.docker_compose_file_path):
+                directory = self.docker_compose_file_path
+            else:
+                raise Exception("Docker Compose path invalid")
+            os.chdir(directory)
+            result = check_output(["docker-compose", "pull"])
+            result = result.decode("utf-8").split("\n")
+            for line in result:
+                if line.startswith("Status:"):
+                    _print(line)
+                    if 'Image is up to date' not in line:
+                        update_required = True
+            return update_required
+        except:
+            self.exceptions.update({'__pull_images': traceback.format_exc()})
+            _print(F"Pull new docker images: {self.FAILED}")
+            return False
+
+    # Restart docker containers
+    def __restart_containers(self):
+        try:
+            if os.path.isfile(self.docker_compose_file_path):
+                path = Path(self.docker_compose_file_path)
+                directory = path.parent
+            elif os.path.isdir(self.docker_compose_file_path):
+                directory = self.docker_compose_file_path
+            else:
+                raise Exception("Docker Compose path invalid")
+            os.chdir(directory)
+            result = check_output(["docker-compose", "up", "-d"])
+            _print(F"Restart docker containers: {self.SUCCESS}")
+            return True  # TODO: Implement test
+        except:
+            self.exceptions.update({'__restart_containers': traceback.format_exc()})
+            _print(F"Restart docker containers: {self.FAILED}")
+            return False
+
     # Create backup and return file size in MB or False if it failed
     def create_backup(self):
 
+        backup_functions = [
+            self.__enable_maintenance_mode,
+            self.__dump_db,
+            self.__export_config,
+            self.__disable_maintenance_mode,
+            self.__tar_backup,
+            self.__set_file_permissions,
+            self.__delete_tmp_dir
+        ]
+
         if self.__create_backup_dir() and self.__create_tmp_dir():
             try:
-                step_status = [
-                    self.__dump_db(),
-                    self.__export_config(),
-                    self.__tar_backup(),
-                    self.__set_file_permissions(),
-                    self.__delete_tmp_dir()
-                ]
-                for step in step_status:
-                    if not step:
+                for fn in backup_functions:
+                    if not fn():
+                        _print(F"{Fore.RED}Backup aborted.{Style.RESET_ALL}")
                         return False
                 return round(Path(self.tar_gz_file_path).stat().st_size / 1000000, 2)
             except:
                 self.exceptions.update({'backup': traceback.format_exc()})
                 return False
         else:
-            _print(F"{Fore.RED}Backup aborted.{Style.RESET_ALL}")
+            _print(F"{Fore.RED}Could not create temporary folder or backup folder. Backup aborted.{Style.RESET_ALL}")
+            return False
 
     def restore_backup(self, backup_file_path):
 
-        self.__restore_dump_file = os.path.basename(backup_file_path[:-6] + "sql")
-        self.__restore_dump_file_path = os.path.join(self.tmp_dir, self.__restore_dump_file)
-        self.__restore_tar_file = os.path.basename(backup_file_path[:-3])
-        self.__restore_tar_file_path = os.path.join(self.tmp_dir, self.__restore_tar_file)
+        self.backup_file_path = backup_file_path
+        self.restore_dump_file = os.path.basename(backup_file_path[:-6] + "sql")
+        self.restore_dump_file_path = os.path.join(self.tmp_dir, self.restore_dump_file)
+        self.restore_tar_file = os.path.basename(backup_file_path[:-3])
+        self.restore_tar_file_path = os.path.join(self.tmp_dir, self.restore_tar_file)
+
+        restore_functions = [
+            self.__untar_backup,
+            self.__enable_maintenance_mode,
+            self.__import_db,
+            self.__import_config,
+            self.__disable_maintenance_mode,
+            self.__delete_tmp_dir
+        ]
 
         if self.__create_tmp_dir():
             try:
-                step_status = [
-                    self.__untar_backup(backup_file_path),
-                    self.__import_config(),
-                    self.__import_db(),
-                    self.__delete_tmp_dir()
-                ]
-                for step in step_status:
-                    if not step:
+                for fn in restore_functions:
+                    if not fn():
                         return False
-                return round(Path(self.tar_gz_file_path).stat().st_size / 1000000, 2)
+                return True
             except:
                 self.exceptions.update({'restore': traceback.format_exc()})
                 return False
+        else:
+            _print(F"{Fore.RED}Could not create temporary folder. Restore aborted.{Style.RESET_ALL}")
+            return False
+
+    def upgrade(self):
+
+        upgrade_functions = [
+            self.__enable_maintenance_mode,
+            self.__restart_containers,
+            self.__disable_maintenance_mode,
+        ]
+
+        if self.__pull_images():
+            for fn in upgrade_functions:
+                if not fn():
+                    return 0
+        else:
+            return 2
+        return 1
 
     @staticmethod
     def instantiate_containers(data: dict) -> dict:
@@ -231,6 +341,7 @@ class Container:
                 values['app_container'],
                 values['db_container'],
                 values['backup_dir'],
+                values['docker_compose_file_path'],
                 values['number_of_backups'])
             })
         return containers
