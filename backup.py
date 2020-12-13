@@ -29,7 +29,7 @@ def backup():
         log = Log(settings_list['log']['log_dir'])
         containers = Container.instantiate_containers(settings_list)
 
-    # If any container names where passed as parameters, do only backup them
+    # If any container names were passed as parameters, do only backup them
     containers_wanted = {name: container for name, container in containers.items() if name in sys.argv}
     if containers_wanted:
         containers = containers_wanted
@@ -55,18 +55,17 @@ def backup():
                 backup_status = False
 
         # Log backup
-        if not utils.no_log:
-            if settings_list['log']['logging']:
-                if backup_status:
-                    log.log(F"Created a backup ; {container.name} ; {container.tar_gz_file_path} ; {result} MB")
-                else:
-                    log.log(F"Backup for {container.name} failed")
-                    if len(log.exceptions) > 0:
-                        for func, traceback in log.exceptions.items():
-                            _print()
-                            _print(F"{Fore.YELLOW}Exception occurred in method: Log.{func}(){Style.RESET_ALL}")
-                            _print(traceback)
-                            _print()
+        if not utils.no_log and settings_list['log']['logging']:
+            if backup_status:
+                log.log(F"Created a backup ; {container.name} ; {container.tar_gz_file_path} ; {result} MB")
+            else:
+                log.log(F"Backup for {container.name} failed")
+                if len(log.exceptions) > 0:
+                    for func, traceback in log.exceptions.items():
+                        _print()
+                        _print(F"{Fore.YELLOW}Exception occurred in method: Log.{func}(){Style.RESET_ALL}")
+                        _print(traceback)
+                        _print()
 
         # Clean up backup folder
         if not utils.no_cleanup:
