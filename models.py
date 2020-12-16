@@ -40,7 +40,7 @@ class Container:
         self.restore_tar_file = ""
 
     # Create backup dir if it does not yet exist
-    def __create_backup_dir(self):
+    def __create_backup_dir(self) -> bool:
         if not os.path.isdir(self.backup_dir):
             try:
                 os.makedirs(self.backup_dir)
@@ -291,7 +291,7 @@ class Container:
             _print(F"{Fore.RED}Could not create temporary folder or backup folder. Backup aborted.{Style.RESET_ALL}")
             return False
 
-    def restore_backup(self, backup_file_path):
+    def restore_backup(self, backup_file_path) -> bool:
 
         self.backup_file_path = backup_file_path
         self.restore_dump_file = os.path.basename(backup_file_path[:-6] + "sql")
@@ -321,7 +321,7 @@ class Container:
             _print(F"{Fore.RED}Could not create temporary folder. Restore aborted.{Style.RESET_ALL}")
             return False
 
-    def upgrade(self):
+    def upgrade(self) -> int:
 
         upgrade_functions = [
             self.__enable_maintenance_mode,
