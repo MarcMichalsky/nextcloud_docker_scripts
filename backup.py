@@ -65,22 +65,7 @@ def backup():
                         _print()
 
         # Clean up backup folder
-        if not utils.no_cleanup:
-            deleted_files = 0
-            backup_dir = os.scandir(container.backup_dir)
-            backup_files = [file for file in backup_dir if
-                            file.is_file() and file.name.startswith(container.name) and file.name.endswith(".tar.gz")]
-
-            while len(backup_files) > container.number_of_backups:
-                del_file = min(backup_files, key=os.path.getctime)
-                backup_files.remove(del_file)
-                os.remove(del_file)
-                deleted_files += 1
-
-            if deleted_files == 1:
-                _print(F"{Fore.YELLOW}Deleted 1 old backup file.{Style.RESET_ALL}")
-            elif deleted_files >= 1:
-                _print(F"{Fore.YELLOW}Deleted {deleted_files} old backup files.{Style.RESET_ALL}")
+        container.cleanup()
 
     return backup_status
 

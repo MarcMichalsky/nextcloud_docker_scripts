@@ -331,6 +331,24 @@ class Container:
             return 2
         return 1
 
+    def cleanup(self):
+        if not utils.no_cleanup:
+            deleted_files = 0
+            backup_dir = os.scandir(self.backup_dir)
+            backup_files = [file for file in backup_dir if
+                            file.is_file() and file.name.startswith(self.name) and file.name.endswith(".tar.gz")]
+
+            while len(backup_files) > self.number_of_backups:
+                del_file = min(backup_files, key=os.path.getctime)
+                backup_files.remove(del_file)
+                os.remove(del_file)
+                deleted_files += 1
+
+            if deleted_files == 1:
+                _print(F"{Fore.YELLOW}Deleted 1 old backup file.{Style.RESET_ALL}")
+            elif deleted_files >= 1:
+                _print(F"{Fore.YELLOW}Deleted {deleted_files} old backup files.{Style.RESET_ALL}")
+
     @staticmethod
     def instantiate_containers(data: dict) -> dict:
         containers = {}
