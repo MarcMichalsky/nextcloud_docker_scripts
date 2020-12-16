@@ -182,13 +182,15 @@ class Container:
             return False
 
     # Enable Nextcloud maintenance mode
-    def __enable_maintenance_mode(self):
+    def __enable_maintenance_mode(self) -> bool:
         try:
             enable_maintenance_mode = check_output(
                 ["docker", "exec", "--user", "www-data", self.app_container, "php", "occ", "maintenance:mode", "--on"])
             chunks = enable_maintenance_mode.decode("utf-8").split('\n')
-            if 'Maintenance mode enabled' in chunks or 'Maintenance mode already enabled' in chunks:
+            if 'Maintenance mode enabled' in chunks:
                 _print(F"Enable Nextcloud maintenance mode: {self.SUCCESS}")
+                return True
+            elif 'Maintenance mode already enabled' in chunks:
                 return True
             else:
                 _print(F"Enable Nextcloud maintenance mode: {self.FAILED}")
