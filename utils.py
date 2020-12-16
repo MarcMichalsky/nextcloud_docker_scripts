@@ -4,7 +4,10 @@ no_log = False
 no_cleanup = False
 all_containers = False
 no_confirm = False
+no_backup = False
 
+# intern Flags
+keep_maintenance_mode = False
 
 
 def set_flags(flags=list):
@@ -20,6 +23,7 @@ def set_flags(flags=list):
     all_containers = "--all" in flags
     no_cleanup = "--nocleanup" in flags
     no_confirm = "--yes" in flags
+    no_backup = "--nobackup" in flags
 
 
 def _print(text=None):

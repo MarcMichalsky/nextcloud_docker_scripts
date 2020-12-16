@@ -9,6 +9,7 @@ import shutil
 from colorama import Fore, Style
 from pathlib import Path
 from utils import _print
+import utils
 
 
 class Container:
@@ -198,21 +199,24 @@ class Container:
             return False
 
     # Disable Nextcloud maintenance mode
-    def __disable_maintenance_mode(self):
-        try:
-            disable_maintenance_mode = check_output(
-                ["docker", "exec", "--user", "www-data", self.app_container, "php", "occ", "maintenance:mode", "--off"])
-            chunks = disable_maintenance_mode.decode("utf-8").split('\n')
-            if 'Maintenance mode disabled' in chunks:
-                _print(F"Disable Nextcloud maintenance mode: {self.SUCCESS}")
-                return True
-            else:
+    def __disable_maintenance_mode(self) -> bool:
+        if not utils.keep_maintenance_mode:
+            try:
+                disable_maintenance_mode = check_output(
+                    ["docker", "exec", "--user", "www-data", self.app_container, "php", "occ", "maintenance:mode", "--off"])
+                chunks = disable_maintenance_mode.decode("utf-8").split('\n')
+                if 'Maintenance mode disabled' in chunks:
+                    _print(F"Disable Nextcloud maintenance mode: {self.SUCCESS}")
+                    return True
+                else:
+                    _print(F"Disable Nextcloud maintenance mode: {self.FAILED}")
+                    return False
+            except:
+                self.exceptions.update({'__disable_maintenance_mode': traceback.format_exc()})
                 _print(F"Disable Nextcloud maintenance mode: {self.FAILED}")
                 return False
-        except:
-            self.exceptions.update({'__disable_maintenance_mode': traceback.format_exc()})
-            _print(F"Disable Nextcloud maintenance mode: {self.FAILED}")
-            return False
+        else:
+            return True
 
     # Pull new docker images
     def __pull_images(self):

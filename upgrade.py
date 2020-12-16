@@ -10,6 +10,7 @@ import utils
 from utils import _print
 from models import Container
 from models import Log
+import backup
 
 
 def upgrade():
@@ -35,37 +36,45 @@ def upgrade():
         container: Container
         for container in containers.values():
 
-            # Start backup
-            _print("----------------------------------------------")
-            _print(F"Start upgrade for {container.name} at {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-            result = container.upgrade()
-            if result == 1:
-                _print(F"{Fore.GREEN}{container.name} upgraded successfully{Style.RESET_ALL}")
-                upgrade_status = True
-            elif result == 2:
-                _print(F"{Fore.GREEN}No upgrades available for {container.name}.{Style.RESET_ALL}")
-                upgrade_status = True
-            else:
-                _print(F"{Fore.RED}Upgrade for {container.name} failed{Style.RESET_ALL}")
-                for func, traceback in container.exceptions.items():
-                    _print()
-                    _print(F"{Fore.YELLOW}Exception occurred in method: Container.{func}(){Style.RESET_ALL}")
-                    _print(traceback)
-                    _print()
-                    upgrade_status = False
+            go_on = True
+            # Make a backup
+            if not utils.no_backup:
+                utils.keep_maintenance_mode = True
+                go_on = backup.backup()
 
-            # Log upgrade
-            if not utils.no_log and settings_list['log']['logging']:
-                if upgrade_status:
-                    log.log(F"Upgrade ; {container.name} ; SUCCESS")
+            if go_on:
+                # Make the upgrade
+                utils.keep_maintenance_mode = True if "--maintenance" in sys.argv else False
+                _print("----------------------------------------------")
+                _print(F"Start upgrade for {container.name} at {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+                result = container.upgrade()
+                if result == 1:
+                    _print(F"{Fore.GREEN}{container.name} upgraded successfully{Style.RESET_ALL}")
+                    upgrade_status = True
+                elif result == 2:
+                    _print(F"{Fore.GREEN}No upgrades available for {container.name}.{Style.RESET_ALL}")
+                    upgrade_status = True
                 else:
-                    log.log(F"Upgrade ; {container.name} ; FAIL")
-                    if len(log.exceptions) > 0:
-                        for func, traceback in log.exceptions.items():
-                            _print()
-                            _print(F"{Fore.YELLOW}Exception occurred in method: Log.{func}(){Style.RESET_ALL}")
-                            _print(traceback)
-                            _print()
+                    _print(F"{Fore.RED}Upgrade for {container.name} failed{Style.RESET_ALL}")
+                    for func, traceback in container.exceptions.items():
+                        _print()
+                        _print(F"{Fore.YELLOW}Exception occurred in method: Container.{func}(){Style.RESET_ALL}")
+                        _print(traceback)
+                        _print()
+                        upgrade_status = False
+
+                # Log upgrade
+                if not utils.no_log and settings_list['log']['logging']:
+                    if upgrade_status:
+                        log.log(F"Upgrade ; {container.name} ; SUCCESS")
+                    else:
+                        log.log(F"Upgrade ; {container.name} ; FAIL")
+                        if len(log.exceptions) > 0:
+                            for func, traceback in log.exceptions.items():
+                                _print()
+                                _print(F"{Fore.YELLOW}Exception occurred in method: Log.{func}(){Style.RESET_ALL}")
+                                _print(traceback)
+                                _print()
 
         return upgrade_status
 
