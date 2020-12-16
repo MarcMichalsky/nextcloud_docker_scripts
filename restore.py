@@ -20,11 +20,8 @@ from simple_term_menu import TerminalMenu
 def restore():
     restore_status = True
 
-    # Fetch arguments
-    utils.all_containers = "--all" in sys.argv
-    utils.quiet_mode = "--quiet" in sys.argv
-    utils.no_log = "--nolog" in sys.argv
-    utils.no_confirm = "--yes" in sys.argv
+    # Set flags
+    utils.set_flags(sys.argv)
 
     # Load settings
     settings = Path(__file__).parent / "settings.yaml"

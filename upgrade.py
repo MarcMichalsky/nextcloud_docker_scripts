@@ -15,11 +15,8 @@ from models import Log
 def upgrade():
     upgrade_status = True
 
-    # Fetch arguments
-    utils.all_containers = "--all" in sys.argv
-    utils.quiet_mode = "--quiet" in sys.argv
-    utils.no_log = "--nolog" in sys.argv
-    utils.no_cleanup = "--nocleanup" in sys.argv
+    # Set flags
+    utils.set_flags(sys.argv)
 
     # Load settings
     settings = Path(__file__).parent / "settings.yaml"

@@ -6,7 +6,24 @@ all_containers = False
 no_confirm = False
 
 
+
+def set_flags(flags=list):
+    global quiet_mode
+    global no_log
+    global no_cleanup
+    global all_containers
+    global no_confirm
+    global no_backup
+
+    quiet_mode = "--quiet" in flags
+    no_log = "--nolog" in flags
+    all_containers = "--all" in flags
+    no_cleanup = "--nocleanup" in flags
+    no_confirm = "--yes" in flags
+
+
 def _print(text=None):
+    global quiet_mode
     if not quiet_mode:
         if not text is None:
             print(text)
