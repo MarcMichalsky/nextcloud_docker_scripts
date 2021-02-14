@@ -19,7 +19,7 @@ def backup():
     utils.set_flags(sys.argv)
 
     # Load configuration
-    config = Path(__file__).parent / "config.yaml"
+    config = Path(__file__).parent / "config.yml"
     with open(config) as file:
         # Load config
         config_list = yaml.full_load(file)
