@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import datetime
 import os
 import sys
 from pathlib import Path
@@ -9,16 +8,10 @@ import utils
 from utils import _print
 from models import Container
 from models import Log
-
 from simple_term_menu import TerminalMenu
 
 
-# terminal_menu = TerminalMenu(["entry 1", "entry 2", "entry 3"])
-# choice_index = terminal_menu.show()
-# https://stackoverflow.com/posts/61265356/revisions
-
 def restore():
-    restore_status = True
 
     # Set flags
     utils.set_flags(sys.argv)
@@ -44,7 +37,6 @@ def restore():
         containers = {containers_to_choose_from[choice_index]: containers.get(containers_to_choose_from[choice_index])}
 
     container: Container
-    results = {}
     for container in containers.values():
 
         # Start restore
@@ -92,7 +84,6 @@ def restore():
                 _print(F"{Fore.YELLOW}Exception occurred in method: Container.{func}(){Style.RESET_ALL}")
                 _print(traceback)
                 _print()
-                backup_status = False
             if not utils.no_log and settings_list['log']['logging']:
                 log.log(F"Restore backup ; {container.name} ; {container.restore_tar_file_path} ; FAIL")
 
