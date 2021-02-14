@@ -19,13 +19,13 @@ def upgrade():
     # Set flags
     utils.set_flags(sys.argv)
 
-    # Load settings
-    settings = Path(__file__).parent / "settings.yaml"
-    with open(settings) as file:
-        # Load settings
-        settings_list = yaml.full_load(file)
-        log = Log(settings_list['log']['log_dir'])
-        containers = Container.instantiate_containers(settings_list)
+    # Load config
+    config = Path(__file__).parent / "config.yaml"
+    with open(config) as file:
+        # Load config
+        config_list = yaml.full_load(file)
+        log = Log(config_list['log']['log_dir'])
+        containers = Container.instantiate_containers(config_list)
 
     # If any container names were passed as parameters, do only upgrade them
     containers_wanted = {name: container for name, container in containers.items() if name in sys.argv}
@@ -68,7 +68,7 @@ def upgrade():
                     _print(traceback)
                     _print()
             # Log upgrade
-            if not utils.no_log and settings_list['log']['logging']:
+            if not utils.no_log and config_list['log']['logging']:
                 if upgrade_status:
                     log.log(F"Upgrade ; {container.name} ; SUCCESS")
                 else:

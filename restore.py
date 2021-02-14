@@ -16,13 +16,13 @@ def restore():
     # Set flags
     utils.set_flags(sys.argv)
 
-    # Load settings
-    settings = Path(__file__).parent / "settings.yaml"
-    with open(settings) as file:
-        # Load settings
-        settings_list = yaml.full_load(file)
-        log = Log(settings_list['log']['log_dir'])
-        containers = Container.instantiate_containers(settings_list)
+    # Load config
+    config = Path(__file__).parent / "config.yaml"
+    with open(config) as file:
+        # Load config
+        config_list = yaml.full_load(file)
+        log = Log(config_list['log']['log_dir'])
+        containers = Container.instantiate_containers(config_list)
 
     # If any container names were passed as parameters, do only restore them
     containers_wanted = {name: container for name, container in containers.items() if name in sys.argv}
@@ -75,7 +75,7 @@ def restore():
         # Print result and log
         if result:
             _print(F"{Fore.GREEN}Backup {container.restore_tar_file} for {container.name} successfully restored.{Style.RESET_ALL}")
-            if not utils.no_log and settings_list['log']['logging']:
+            if not utils.no_log and config_list['log']['logging']:
                 log.log(F"Restore backup ; {container.name} ; {container.restore_tar_file_path} ; SUCCESS")
         else:
             _print(F"{Fore.RED}Could not restore {container.restore_tar_file} for {container.name}.{Style.RESET_ALL}")
@@ -84,7 +84,7 @@ def restore():
                 _print(F"{Fore.YELLOW}Exception occurred in method: Container.{func}(){Style.RESET_ALL}")
                 _print(traceback)
                 _print()
-            if not utils.no_log and settings_list['log']['logging']:
+            if not utils.no_log and config_list['log']['logging']:
                 log.log(F"Restore backup ; {container.name} ; {container.restore_tar_file_path} ; FAIL")
 
 

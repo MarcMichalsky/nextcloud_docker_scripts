@@ -18,13 +18,13 @@ def backup():
     # Set flags
     utils.set_flags(sys.argv)
 
-    # Load settings
-    settings = Path(__file__).parent / "settings.yaml"
-    with open(settings) as file:
-        # Load settings
-        settings_list = yaml.full_load(file)
-        log = Log(settings_list['log']['log_dir'])
-        containers = Container.instantiate_containers(settings_list)
+    # Load configuration
+    config = Path(__file__).parent / "config.yaml"
+    with open(config) as file:
+        # Load config
+        config_list = yaml.full_load(file)
+        log = Log(config_list['log']['log_dir'])
+        containers = Container.instantiate_containers(config_list)
 
     # If any container names were passed as parameters, do only back up them
     containers_wanted = {name: container for name, container in containers.items() if name in sys.argv}
@@ -59,7 +59,7 @@ def backup():
                 backup_status = False
 
         # Log backup
-        if not utils.no_log and settings_list['log']['logging']:
+        if not utils.no_log and config_list['log']['logging']:
             if backup_status:
                 log.log(F"Created a backup ; {container.name} ; {container.tar_gz_file_path} ; {result} MB")
             else:
