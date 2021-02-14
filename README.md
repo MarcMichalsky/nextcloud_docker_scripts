@@ -21,17 +21,17 @@ pip3 install -r requirements.txt
 ```
 
 ### Configuration
-1. Copy the `example_configuration.yml`.
+1. Copy the `example_config.yml`.
 ```bash
-cp example_configuration.yml configuration.yml
+cp example_config.yml config.yml
 ```
 
-2. Adjust the `configuration.yml` with an editor of your choice.
+2. Adjust the `config.yml` with an editor of your choice.
 
 ### Back up a Nextcloud installation
 
 The `backup.py` script will create a **backup of the database and the configuration** of your Nextcloud installations. 
-You can adjust the backup directory and the maximum number of backups in the `configuration.yml`.
+You can adjust the backup directory and the maximum number of backups in the `config.yml`.
 
 ```bash
 python3 backup.py
