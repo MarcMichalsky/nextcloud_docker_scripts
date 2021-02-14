@@ -1,17 +1,22 @@
 nextcloud_containers:
 
-  instance1: # name like Nextcloud container instance
-    mysql_password: "password"
-    backup_folder: "/full/path/to/directory/"
-    compose_file_path: "/full/path/to/directory/"
+  cloud1: # Name it after your Nextcloud installation
+    app_container: "nextcloud-app-container-name"
+    db_container: "nextcloud-database-container-name"
+    mysql_root_password: "password"
+    backup_dir: "/full/path/to/directory/"
+    docker_compose_file_path: "/full/path/to/docker-compose.yaml"
+    number_of_backups: 5
 
-  instance2: # name like Nextcloud container instance
-    mysql_password: "password"
-    backup_folder: "/full/path/to/directory/"
-    compose_file_path: "/full/path/to/directory/"
+  cloud2: # Name it after your Nextcloud installation
+    app_container: "nextcloud-app-container-name"
+    db_container: "nextcloud-database-container-name"
+    mysql_root_password: "password"
+    backup_dir: "/full/path/to/directory/"
+    docker_compose_file_path: "/full/path/to/docker-compose.yaml"
+    number_of_backups: 5
 
 log:
-  text: true
-  json: false
-  log_file: "/full/path/to/file.log"
+  logging: true
+  log_dir: "/path/for/logging/"
 
