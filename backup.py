@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import datetime
-import os
 import sys
 from pathlib import Path
 import yaml
@@ -10,6 +9,7 @@ import utils
 from utils import _print
 from models import Container
 from models import Log
+from simple_term_menu import TerminalMenu
 
 
 def backup():
@@ -26,10 +26,17 @@ def backup():
         log = Log(settings_list['log']['log_dir'])
         containers = Container.instantiate_containers(settings_list)
 
-    # If any container names were passed as parameters, do only backup them
+    # If any container names were passed as parameters, do only back up them
     containers_wanted = {name: container for name, container in containers.items() if name in sys.argv}
     if containers_wanted:
         containers = containers_wanted
+
+    # If no container was chosen ask for it
+    elif not utils.all_containers:
+        containers_to_choose_from = [container.name for container in containers.values()]
+        terminal_menu = TerminalMenu(containers_to_choose_from, title="Which Nextcloud instance do you want to back up?")
+        choice_index = terminal_menu.show()
+        containers = {containers_to_choose_from[choice_index]: containers.get(containers_to_choose_from[choice_index])}
 
     # Loop through Nextcloud container instances
     container: Container
@@ -66,8 +73,6 @@ def backup():
 
         # Clean up backup folder
         container.cleanup()
-
-    return backup_status
 
 
 if __name__ == '__main__':
