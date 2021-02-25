@@ -74,6 +74,7 @@ def backup():
         # Clean up backup folder
         container.cleanup()
 
+    return backup_status
 
 if __name__ == '__main__':
     backup()
