@@ -81,7 +81,7 @@ class Container:
     def __dump_db(self) -> bool:
         try:
             os.system(
-                F"docker exec {self.db_container} mysqldump --password={self.__password} --all-databases > {self.__dump_file_path}")
+                F"docker exec {self.db_container} mysqldump --default-character-set=utf8mb4 --password={self.__password} --all-databases > {self.__dump_file_path}")
             status = os.path.isfile(self.__dump_file_path)
             _print(F"Dump Nextcloud database: {self.SUCCESS if status else self.FAILED}")
             return status
